@@ -117,13 +117,17 @@ Please follow the [instructions](https://github.com/nv-tlabs/cosmos-av-sample-to
 
 
 ### 2. Splitting the Checkpoints to TensorParallel Checkpoints
-Due to the large model size, we leverage TensorParallel (TP) to split the model weights across multiple GPUs. We use 8 for the TP size.
+Due to the large model size, we leverage TensorParallel (TP) to split the model weights across multiple GPUs. The default TP size is 8.
+If you have fewer GPUs, choose a smaller `--tp-size` when running the splitting script.
 
 ```bash
-# Will split the Base model checkpoint into 8 TP checkpoints
+# Will split the Base model checkpoint (8-way TP by default)
 PYTHONPATH=. python scripts/convert_ckpt_fsdp_to_tp.py checkpoints/nvidia/Cosmos-Transfer1-7B-Sample-AV/t2w_base_model.pt
-# Example: for LidarControl checkpoint splitting for post-train.
+# Example: for LidarControl checkpoint splitting for post-train
 PYTHONPATH=. python scripts/convert_ckpt_fsdp_to_tp.py checkpoints/nvidia/Cosmos-Transfer1-7B-Sample-AV/t2w_lidar_control.pt
+
+# Example using only 2 splits
+PYTHONPATH=. python scripts/convert_ckpt_fsdp_to_tp.py checkpoints/nvidia/Cosmos-Transfer1-7B-Sample-AV/t2w_base_model.pt --tp-size 2
 
 # Example: for Single2MultiView, the base model checkpoint is different
 PYTHONPATH=. python scripts/convert_ckpt_fsdp_to_tp.py checkpoints/nvidia/Cosmos-Transfer1-7B-Sample-AV-Single2MultiView/t2w_base_model.pt
@@ -156,10 +160,16 @@ Explanation of the command:
 ### 4. Launch Training
 
 #### 4.a Launch Training of Cosmos-Transfer1-7B-Sample-AV
-Now we can start a real training job! Removing the `--dryrun` and set `--nproc_per_node=8` will start a real training job on 8 GPUs, using Lidar conditioning:
+Now we can start a real training job! By default the configuration uses 8 GPUs. Removing the `--dryrun` and setting `--nproc_per_node=8` will launch training on 8 GPUs with Lidar conditioning. If you only have 2 GPUs, set `--nproc_per_node=2` and override the tensor parallel size:
 
 ```bash
 torchrun --nproc_per_node=8 -m cosmos_transfer1.diffusion.training.train --config=cosmos_transfer1/diffusion/config/config_train.py -- experiment=CTRL_7Bv1pt3_t2w_121frames_control_input_lidar_block3_pretrain
+```
+
+On two GPUs:
+
+```bash
+torchrun --nproc_per_node=2 -m cosmos_transfer1.diffusion.training.train --config=cosmos_transfer1/diffusion/config/config_train.py -- experiment=CTRL_7Bv1pt3_t2w_121frames_control_input_lidar_block3_pretrain model_parallel.tensor_model_parallel_size=2
 ```
 #### 4.b Launch Training of Cosmos-Transfer1-7B-Sample-AV-Single2MultiView
 In this example, we instead launch a training run of the Single2MultiView model with HDMap condition:
@@ -181,7 +191,7 @@ torchrun --nproc_per_node=8 -m cosmos_transfer1.diffusion.training.train --confi
 This will update the maximum training iterations to 100 (default in the registered experiments: 999999999) and checkpoint saving frequency to 50 (default: 1000).
 
 **Saving Checkpoints and Resuming Training.**
-During the training, the checkpoints will be saved in the below structure. Since we use TensorParallel across 8 GPUs, 8 checkpoints will be saved each time.
+During the training, the checkpoints will be saved in the below structure. The number of `*_model_mp_*.pt` files equals the tensor parallel size used for training.
 
 ```
 checkpoints/cosmos_transfer1_pretrain/CTRL_7Bv1_sampleAV/CTRL_7Bv1pt3_t2w_121frames_control_input_lidar_block3_pretrain/checkpoints/
