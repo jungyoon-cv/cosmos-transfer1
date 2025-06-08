@@ -50,6 +50,7 @@ CTRL_HINT_KEYS = [
     "control_input_upscale",
     "control_input_hdmap",
     "control_input_lidar",
+    "control_input_bbox3d",
 ]
 
 CTRL_HINT_KEYS_COMB = {
@@ -61,6 +62,7 @@ CTRL_HINT_KEYS_COMB = {
     "control_input_upscale": [AddControlInputUpscale],
     "control_input_hdmap": [AddControlInputHDMAP],
     "control_input_lidar": [AddControlInputLIDAR],
+    "control_input_bbox3d": [AddControlInputBbox3D],
 }
 
 # SS=self-supervised
