@@ -16,6 +16,7 @@
 """
 Converting an FSDP checkpoint to a TP checkpoint.
 """
+import argparse
 import os
 import sys
 from collections import OrderedDict
@@ -74,7 +75,7 @@ def native_to_tp(reg_state_dict: Dict[str, Any], tp_size: int) -> List[OrderedDi
     return tp_state_dict
 
 
-def convert_fsdp_to_tp(path_in: str, path_out: str) -> None:
+def convert_fsdp_to_tp(path_in: str, path_out: str, tp_size: int) -> None:
     """Convert an FSDP checkpoint to TP format.
 
     Args:
@@ -95,7 +96,7 @@ def convert_fsdp_to_tp(path_in: str, path_out: str) -> None:
             map_location=torch.device("cpu"),
             weights_only=False,  # Load to CPU first; weights_only=False required for newer PyTorch versions
         )
-        state_dicts = native_to_tp(native_ckpt, TP_SIZE)
+        state_dicts = native_to_tp(native_ckpt, tp_size)
     except FileNotFoundError:
         raise FileNotFoundError(f"Checkpoint file {path_in} not found")
     except Exception as e:
@@ -104,7 +105,7 @@ def convert_fsdp_to_tp(path_in: str, path_out: str) -> None:
     log.info("Saving TP checkpoints..")
     # Add a dummy grad_scaler and iteration to the checkpoint. Required by the training script.
     easy_io.dump({"grad_scaler": {}, "iteration": 0}, f"{path_out}.pt")
-    for i in tqdm(range(TP_SIZE)):
+    for i in tqdm(range(tp_size)):
         state_dict = {"model": state_dicts[i], "ema": None}
         easy_io.dump(state_dict, f"{path_out}_model_mp_{i}.pt")
 
@@ -116,28 +117,29 @@ if __name__ == "__main__":
     Command:
         python convert_ckpt_fsdp_to_tp.py checkpoints/nvidia/Cosmos-Transfer1-7B/vis_control.pt
 
-    This will save the Tensor Parallel (TP) checkpoints as 8 files in the same directory:
+    This will save the Tensor Parallel (TP) checkpoints as <tp_size> files in the same directory:
         checkpoints/nvidia/Cosmos-Transfer1-7B/vis_control_model_mp_0.pt
         ...
-        checkpoints/nvidia/Cosmos-Transfer1-7B/vis_control_model_mp_7.pt
+        checkpoints/nvidia/Cosmos-Transfer1-7B/vis_control_model_mp_<tp_size-1>.pt
     """
-    if len(sys.argv) != 2:
-        print("Usage: python convert_ckpt_fsdp_to_tp.py <path_to_checkpoint.pt>")
-        print("Example: python convert_ckpt_fsdp_to_tp.py checkpoints/model.pt")
-        sys.exit(1)
+parser = argparse.ArgumentParser(description="Convert an FSDP checkpoint to TP format")
+parser.add_argument("checkpoint", help="Path to checkpoint to convert")
+parser.add_argument("--tp-size", type=int, default=8, help="Number of TP partitions")
+args = parser.parse_args()
 
-    checkpoint_path = sys.argv[1]
+checkpoint_path = args.checkpoint
+TP_SIZE = args.tp_size
 
-    # Create checkpoints_tp directory in the same parent directory as the input checkpoint
-    input_dir = os.path.dirname(checkpoint_path)
-    tp_ckpt_dir = os.path.join(input_dir, "checkpoints_tp")
-    os.makedirs(tp_ckpt_dir, exist_ok=True)
+# Create checkpoints_tp directory in the same parent directory as the input checkpoint
+input_dir = os.path.dirname(checkpoint_path)
+tp_ckpt_dir = os.path.join(input_dir, "checkpoints_tp")
+os.makedirs(tp_ckpt_dir, exist_ok=True)
 
-    # Use the same basename as input but in the checkpoints_tp directory
-    out_tp_checkpoint_path = os.path.join(tp_ckpt_dir, os.path.basename(checkpoint_path).replace(".pt", ""))
-    try:
-        convert_fsdp_to_tp(checkpoint_path, out_tp_checkpoint_path)
-        print(f"Conversion completed successfully! See {tp_ckpt_dir}.")
-    except Exception as e:
-        print(f"Error during conversion: {str(e)}")
-        sys.exit(1)
+# Use the same basename as input but in the checkpoints_tp directory
+out_tp_checkpoint_path = os.path.join(tp_ckpt_dir, os.path.basename(checkpoint_path).replace(".pt", ""))
+try:
+    convert_fsdp_to_tp(checkpoint_path, out_tp_checkpoint_path, tp_size=TP_SIZE)
+    print(f"Conversion completed successfully! See {tp_ckpt_dir}.")
+except Exception as e:
+    print(f"Error during conversion: {str(e)}")
+    sys.exit(1)
