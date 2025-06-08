@@ -670,6 +670,8 @@ def get_augmentor_for_eval(
             comb.append(partial(AddControlInputHDMAP, output_keys=["control_input_hdmap"]))
         elif "lidar" in key:
             comb.append(partial(AddControlInputLIDAR, output_keys=["control_input_lidar"]))
+        elif "bbox3d" in key:
+            comb.append(partial(AddControlInputBbox3D, output_keys=["control_input_bbox3d"]))
     process = AddControlInputComb(
         input_keys=["", input_key],
         output_keys=[output_key],
@@ -771,6 +773,31 @@ class AddControlInputLIDAR(Augmentor):
         key_out = self.output_keys[0]
         lidar = data_dict["lidar"]["video"]
         data_dict[key_out] = lidar
+        return data_dict
+
+
+class AddControlInputBbox3D(Augmentor):
+    """Add 3D bounding box control input. No extra processing is done."""
+
+    def __init__(
+        self,
+        input_keys: list,
+        output_keys: Optional[list] = ["control_input_bbox3d"],
+        args: Optional[dict] = None,
+        **kwargs,
+    ) -> None:
+        self.output_keys = output_keys
+        self.input_keys = input_keys
+
+        super().__init__(input_keys, output_keys, args)
+
+    def __call__(self, data_dict) -> dict:
+        if "control_input_bbox3d" in data_dict:
+            return data_dict
+
+        key_out = self.output_keys[0]
+        bbox3d = data_dict["bbox3d"]["video"]
+        data_dict[key_out] = bbox3d
         return data_dict
 
 

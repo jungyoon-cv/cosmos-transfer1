@@ -39,6 +39,7 @@ CTRL_TYPE_INFO = {
     "depth": {"folder": "depth", "format": "mp4", "data_dict_key": "depth"},
     "lidar": {"folder": "lidar", "format": "mp4", "data_dict_key": "lidar"},
     "hdmap": {"folder": "hdmap", "format": "mp4", "data_dict_key": "hdmap"},
+    "bbox3d": {"folder": "bbox3d", "format": "mp4", "data_dict_key": "bbox3d"},
     "seg": {"folder": "seg", "format": "pickle", "data_dict_key": "segmentation"},
     "edge": {"folder": None},  # Canny edge, computed on-the-fly
     "vis": {"folder": None},  # Blur, computed on-the-fly
@@ -156,6 +157,16 @@ class ExampleTransferDataset(Dataset):
                 hdmap_frames = torch.from_numpy(hdmap_frames).permute(3, 0, 1, 2)  # [C,T,H,W], same as rgb video
                 data_dict["hdmap"] = {
                     "video": hdmap_frames,
+                    "frame_start": frame_ids[0],
+                    "frame_end": frame_ids[-1],
+                }
+            elif self.ctrl_type == "bbox3d":
+                vr = VideoReader(ctrl_path, ctx=cpu(0))
+                assert len(vr) >= frame_ids[-1] + 1, f"Bbox3D video {ctrl_path} has fewer frames than main video"
+                bbox_frames = vr.get_batch(frame_ids).asnumpy()
+                bbox_frames = torch.from_numpy(bbox_frames).permute(3, 0, 1, 2)
+                data_dict["bbox3d"] = {
+                    "video": bbox_frames,
                     "frame_start": frame_ids[0],
                     "frame_end": frame_ids[-1],
                 }
