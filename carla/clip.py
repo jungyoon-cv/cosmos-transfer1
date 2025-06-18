@@ -1,4 +1,6 @@
 import os
+import re
+import json
 import pickle
 from glob import glob
 from tqdm import tqdm
@@ -24,15 +26,40 @@ def numeric_frame(p: str) -> int:
     return int(os.path.basename(p).split('_')[0])
 
 
+def seconds_to_timecode(seconds: float) -> str:
+    millis = int(round(seconds * 1000))
+    hours = millis // 3_600_000
+    minutes = (millis % 3_600_000) // 60_000
+    secs = (millis % 60_000) / 1000
+    return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+
+
 def make_clips(scene_path: str):
     rgb_dir  = os.path.join(scene_path, "rgb")
+    
     clip_dir = os.path.join(DST_DIR, "rgb")
     seg_dir = os.path.join(DST_DIR, "seg")
+    metas_dir = os.path.join(DST_DIR, "metas")
     os.makedirs(clip_dir, exist_ok=True)
     os.makedirs(seg_dir, exist_ok=True)
+    os.makedirs(metas_dir, exist_ok=True)
 
     ext = '*.jpg'
     frames = sorted(glob(os.path.join(rgb_dir, ext)), key=numeric_frame)
+
+    scene_name = os.path.basename(scene_path)
+    tokens = scene_name.split("_")
+    weathers, mode = tokens[1], tokens[-1]
+
+    weather_parts = re.findall(r"[A-Z][a-z]*", weathers)
+    weather_list = ", ".join(weather_parts)
+    
+    """
+    The video is captured from a camera mounted on a car. The camera is facing forward. 
+    날씨 이야기~
+    후미등 상태 이야기~ 
+    """
+    prompt = f"{weather_list}, {mode.capitalize()}".strip(", ")
 
     for clip_idx, start in enumerate(range(0, len(frames), CLIP_FR)):
         end = start + CLIP_FR
@@ -45,7 +72,7 @@ def make_clips(scene_path: str):
                 f.write(f"file '{os.path.abspath(fp)}'\n")
 
         out_mp4 = os.path.join(
-            clip_dir, f"{os.path.basename(scene_path)}_{clip_idx:04d}.mp4"
+            clip_dir, f"{os.path.basename(scene_path)}.{clip_idx:04d}.mp4"
         )
 
         (
@@ -67,10 +94,28 @@ def make_clips(scene_path: str):
             {"phrase": "tail_light_right", "segmentation_mask_rle": rle_encode(right)},
         ]
         pkl_path = os.path.join(
-            seg_dir, f"{os.path.basename(scene_path)}_{clip_idx:04d}.pickle"
+            seg_dir, f"{os.path.basename(scene_path)}.{clip_idx:04d}.pickle"
         )
         with open(pkl_path, "wb") as pf:
             pickle.dump(detections, pf)
+
+        clip_name = f"{scene_name}.{clip_idx:04d}"
+        txt_path = os.path.join(metas_dir, clip_name + ".txt")
+        json_path = os.path.join(metas_dir, clip_name + ".json")
+        with open(txt_path, "w") as tf:
+            tf.write(prompt)
+        
+        duration_sec = (end - start) / FPS
+        meta = {
+            "clip_id": clip_name + ".mp4",
+            "video_id": scene_name + ".mp4",
+            "url": "",
+            "span_start": "00:00:00.000",
+            "span_end": seconds_to_timecode(duration_sec),
+            "caption": prompt,
+        }
+        with open(json_path, "w") as jf:
+            json.dump(meta, jf)
 
 
 def main():
