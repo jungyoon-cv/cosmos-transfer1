@@ -32,14 +32,19 @@ def parse_args() -> argparse.ArgumentParser:
     parser.add_argument("--dataset_path", type=str, default="datasets/hdvila", help="Root path to the dataset")
     parser.add_argument("--max_length", type=int, default=512, help="Maximum length of the text embedding")
     parser.add_argument(
-        "--pretrained_model_name_or_path", type=str, default="google-t5/t5-11b", help="T5 model name or the local path"
+        "--pretrained_model_name_or_path",
+        type=str,
+        default="checkpoints/google-t5/t5-11b",
+        help="T5 model name or the local path",
     )
     parser.add_argument("--cache_dir", type=str, default="checkpoints", help="Directory to cache the T5 model")
     return parser.parse_args()
 
 
 def init_t5(
-    pretrained_model_name_or_path: str = "google-t5/t5-11b", max_length: int = 512, cache_dir: str = "~/.cache"
+    pretrained_model_name_or_path: str = "checkpoints/google-t5/t5-11b",
+    max_length: int = 512,
+    cache_dir: str = "~/.cache",
 ) -> Tuple[T5TokenizerFast, T5EncoderModel]:
     """Initialize and return the T5 tokenizer and text encoder."""
     tokenizer = T5TokenizerFast.from_pretrained(
@@ -102,7 +107,11 @@ def main(args) -> None:
     os.makedirs(t5_xxl_dir, exist_ok=True)
 
     # Initialize T5
-    tokenizer, text_encoder = init_t5(cache_dir=args.cache_dir)
+    tokenizer, text_encoder = init_t5(
+        pretrained_model_name_or_path=args.pretrained_model_name_or_path,
+        max_length=args.max_length,
+        cache_dir=args.cache_dir,
+    )
 
     for meta_filename in metas_list:
         t5_xxl_filename = os.path.join(t5_xxl_dir, os.path.basename(meta_filename).replace(".txt", ".pickle"))
