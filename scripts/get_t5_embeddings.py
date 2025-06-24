@@ -101,8 +101,12 @@ def main(args) -> None:
     t5_xxl_dir = os.path.join(args.dataset_path, "t5_xxl")
     os.makedirs(t5_xxl_dir, exist_ok=True)
 
-    # Initialize T5
-    tokenizer, text_encoder = init_t5(cache_dir=args.cache_dir)
+    # Initialize T5 using provided arguments
+    tokenizer, text_encoder = init_t5(
+        pretrained_model_name_or_path=args.pretrained_model_name_or_path,
+        max_length=args.max_length,
+        cache_dir=args.cache_dir,
+    )
 
     for meta_filename in metas_list:
         t5_xxl_filename = os.path.join(t5_xxl_dir, os.path.basename(meta_filename).replace(".txt", ".pickle"))
